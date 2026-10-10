@@ -18,6 +18,8 @@ from urllib3.util.retry import Retry
 
 SOURCE = "https://www.mcgill.ca/channels/section/group_arts_culture/channel_event"
 TZ = ZoneInfo("America/Toronto")
+FREE_TAG = "Free events"
+FREE_PREFIX = "🆓 FREE | "
 
 
 def safe_url(base, href):
@@ -54,7 +56,27 @@ def export_link(html, url):
     return safe_url(url, a["href"])
 
 
-def normalize(data, url, stamp):
+def event_tags(html):
+    soup = BeautifulSoup(html, "html.parser")
+    return [meta["content"] for meta in soup.select('meta[name="mcgill_tag"][content]')]
+
+
+def apply_tags(event, tags):
+    if FREE_TAG not in tags:
+        return
+    summary = str(event["SUMMARY"])
+    if not summary.startswith(FREE_PREFIX):
+        event["SUMMARY"] = FREE_PREFIX + summary
+    categories = event.get("CATEGORIES")
+    properties = categories if isinstance(categories, list) else [categories] if categories else []
+    existing = [str(value) for prop in properties for value in prop.cats]
+    if FREE_TAG not in existing:
+        if "CATEGORIES" in event:
+            del event["CATEGORIES"]
+        event.add("CATEGORIES", [*existing, FREE_TAG])
+
+
+def normalize(data, url, stamp, tags=()):
     cal = Calendar.from_ical(data)
     events = cal.walk("VEVENT")
     if not events:
@@ -86,6 +108,7 @@ def normalize(data, url, stamp):
         event.add("URL", url)
         if re.match(r"^CANCELLED\b", str(event["SUMMARY"]), re.I):
             event["STATUS"] = "CANCELLED"
+        apply_tags(event, tags)
         event.add("DTSTAMP", stamp)
         result.append(event)
     return result
@@ -161,7 +184,8 @@ def crawl(fetch, max_pages=100):
     events = []
     for i, url in enumerate(sorted(links), 1):
         logging.info("Event %s/%s: %s", i, len(links), url)
-        events.extend(normalize(fetch.get(export_link(fetch.get(url), url)), url, stamp))
+        page = fetch.get(url)
+        events.extend(normalize(fetch.get(export_link(page, url)), url, stamp, event_tags(page)))
     return events, len(pages), stamp
 
 

@@ -2,7 +2,10 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import pytest
 from icalendar import Calendar
-from calendar_feed import listing, export_link, normalize, assemble, crawl, SOURCE, TZ
+from calendar_feed import (
+    FREE_PREFIX, SOURCE, TZ, apply_tags, assemble, crawl, event_tags, export_link,
+    listing, normalize,
+)
 
 FIX = Path(__file__).parent / "fixtures"
 STAMP = datetime(2026, 10, 9, tzinfo=timezone.utc)
@@ -21,6 +24,40 @@ def test_actual_html_and_export():
     assert 'Clara Lichtenstein Hall' in str(e['LOCATION'])
     assert 'graduate students' in str(e['DESCRIPTION'])
     assert str(e['URL']) == URL
+
+def test_exact_free_tag_decorates_summary_and_categories_without_changing_uid():
+    tags = event_tags((FIX / 'event.html').read_bytes())
+    assert tags == ['Free events', 'Concerts']
+    plain = event()
+    free = normalize((FIX / 'event.ics').read_bytes(), URL, STAMP, tags)[0]
+    assert str(free['SUMMARY']) == FREE_PREFIX + str(plain['SUMMARY'])
+    assert [str(category) for category in free['CATEGORIES'].cats] == ['Free events']
+    assert free['UID'] == plain['UID']
+
+def test_untagged_and_similarly_named_tags_are_not_marked_free():
+    for tags in ([], ['Free Events'], ['Free events online'], ['Concerts']):
+        candidate = normalize((FIX / 'event.ics').read_bytes(), URL, STAMP, tags)[0]
+        assert str(candidate['SUMMARY']) == 'Musical Evenings with MGSS'
+        assert 'CATEGORIES' not in candidate
+
+def test_free_tag_application_is_idempotent_and_deduplicates():
+    free = normalize((FIX / 'event.ics').read_bytes(), URL, STAMP, ['Free events'])[0]
+    original_uid = str(free['UID'])
+    apply_tags(free, ['Free events'])
+    assert str(free['SUMMARY']).count(FREE_PREFIX) == 1
+    assert [str(category) for category in free['CATEGORIES'].cats] == ['Free events']
+    assert str(free['UID']) == original_uid
+    calendar = assemble([free, free], None, STAMP)
+    assert len(calendar.walk('VEVENT')) == 1
+
+def test_free_tag_preserves_existing_categories_without_duplicates():
+    candidate = event()
+    candidate.add('CATEGORIES', ['Concerts'])
+    apply_tags(candidate, ['Free events'])
+    apply_tags(candidate, ['Free events'])
+    assert [str(category) for category in candidate['CATEGORIES'].cats] == [
+        'Concerts', 'Free events',
+    ]
 
 def test_stable_uid_slug_time_and_source_uid_changes():
     a = event()
@@ -58,6 +95,10 @@ def test_all_day_and_cancelled():
     e=normalize(raw,URL,STAMP)[0]
     assert str(e['STATUS'])=='CANCELLED'
     assert not isinstance(e.decoded('DTSTART'),datetime)
+
+    free = normalize(raw, URL, STAMP, ['Free events'])[0]
+    assert str(free['STATUS']) == 'CANCELLED'
+    assert str(free['SUMMARY']) == FREE_PREFIX + 'CANCELLED | Example'
 
 def test_dst_and_utf8_folding():
     e=event()
