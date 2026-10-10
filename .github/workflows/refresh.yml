@@ -1,0 +1,58 @@
+name: Refresh and publish calendar
+
+on:
+  schedule:
+    - cron: '17 10 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: calendar-pages
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: public/calendar.ics
+          key: calendar-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: calendar-
+
+      - run: python calendar_feed.py
+
+      - uses: actions/cache/save@v4
+        with:
+          path: public/calendar.ics
+          key: calendar-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4
