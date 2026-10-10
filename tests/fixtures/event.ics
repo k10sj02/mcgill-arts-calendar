@@ -1,0 +1,20 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//132.216.98.100//NONSGML kigkonsult.se iCalcreator 2.20.4//
+BEGIN:VEVENT
+UID:20261009T222137EDT-6450dOvv1v@132.216.98.100
+DTSTAMP:20261010T022137Z
+DESCRIPTION:Irén Hangen Vázquez\, coordinator\n\nMusical Evenings with MGSS
+  is a casual concert series for graduate students at the Schulich School o
+ f Music.\n\nThese concerts are open to the public and the Schulich communi
+ ty to help support grad students as they prepare for their recitals\, audi
+ tions\, and other performances.\n
+DTSTART:20261015T233000Z
+DTEND:20261016T010000Z
+LOCATION:Clara Lichtenstein Hall\, Strathcona Music Building\, CA\, QC\, Mo
+ ntreal\, H3A 1E3\, 555 rue Sherbrooke Ouest
+SUMMARY:Musical Evenings with MGSS
+URL:https://www.mcgill.ca/channels/channels/event/musical-evenings-mgss-374
+ 725
+END:VEVENT
+END:VCALENDAR
